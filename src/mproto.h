@@ -23,7 +23,16 @@ typedef uint32_t    mptime_t;
 typedef uint8_t     mpcmd_t;
 typedef void *      mproto_ctx_t;
 
-typedef void (*mproto_cmd_cb_t)(uint8_t *data, size_t len);
+typedef enum {
+    MPROTO_SPIN_NO_DATA = 0,
+    MPROTO_SPIN_TIMEOUT = 1
+} mproto_spin_result_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef void (*mproto_cmd_cb_t)(mpcmd_t cmd, uint8_t *data, size_t len);
 
 typedef struct
 {
@@ -37,10 +46,14 @@ typedef struct
 } mproto_func_ctx_t;
 
 mproto_ctx_t mproto_init(mproto_func_ctx_t *func_ctx);
-void mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time);
+mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time);
 
 void mproto_register_command(mproto_ctx_t ctx, mpcmd_t cmd, mproto_cmd_cb_t cb);
 
 void mproto_send_data(mproto_ctx_t ctx, mpcmd_t cmd, uint8_t *data, size_t len);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // MAD_PROTO_H_

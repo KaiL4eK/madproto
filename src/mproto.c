@@ -4,12 +4,12 @@
 
 typedef enum
 {
-    M_START_BYTE,
-    M_CMD,
-    M_DATA_LEN,
-    M_HCHK,
-    M_DATA,
-    M_DCHK
+    M_START_BYTE = 0,
+    M_CMD = 1,
+    M_DATA_LEN = 2,
+    M_HCHK = 3,
+    M_DATA = 4,
+    M_DCHK = 5
 
 } rcv_mode_t;
 
@@ -43,9 +43,7 @@ typedef struct
 } internal_ctx_t;
 
 #define START_BYTE  0xe7
-#define STOP_BYTE   0xe5
-
-
+#define STOP_BYTE   0x7e
 
 uint32_t calc_crc32(uint8_t *data, size_t len)
 {
@@ -54,6 +52,17 @@ uint32_t calc_crc32(uint8_t *data, size_t len)
 
 internal_ctx_t  base_ctx[MADPROTO_CONTEXT_COUNT];
 size_t          ctx_last_idx = 0;
+
+static void call_cb_on(internal_ctx_t *inctx)
+{
+    size_t i;    
+    for ( i = 0; i < inctx->registered_count; i++ ) {
+        if ( inctx->hdr.cmd == inctx->registered_codes[i] ) {
+            inctx->registered_cbs[i](inctx->hdr.cmd, inctx->rcv_buffer, inctx->rcv_bytes);
+            break;
+        }
+    }
+}
 
 mproto_ctx_t mproto_init(mproto_func_ctx_t *func_ctx)
 {
@@ -93,7 +102,11 @@ void mproto_register_command(mproto_ctx_t ctx, mpcmd_t cmd, mproto_cmd_cb_t cb)
         return;
     }
 
-    inctx->registered_cbs[inctx->registered_count++] = cb;
+    inctx->registered_cbs[inctx->registered_count] = cb;
+    inctx->registered_codes[inctx->registered_count] = cmd;
+    inctx->registered_count++;
+
+    printf("Register %d / count: %d\n", cmd, inctx->registered_count);
 }
 
 static void send_bytes(internal_ctx_t *inctx, uint8_t *data, size_t len)
@@ -121,7 +134,7 @@ void mproto_send_data(mproto_ctx_t ctx, mpcmd_t cmd, uint8_t *data, size_t len)
     send_bytes(inctx, &dcrc, sizeof(dcrc));
 }
 
-void mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
+mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
 {
     internal_ctx_t *inctx = ctx;
 
@@ -139,11 +152,11 @@ void mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
         }
 
         if ( diffTime > spin_max_time )
-            break;
+            return MPROTO_SPIN_TIMEOUT;
 
         int16_t rcv_input = inctx->func_ctx->get_byte();
         if ( rcv_input < 0 )
-            break;
+            return MPROTO_SPIN_NO_DATA;
         
         uint8_t rcv_byte = rcv_input;
 
@@ -152,21 +165,21 @@ void mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
             case M_START_BYTE:
             {
                 if ( rcv_byte == START_BYTE )
-                    inctx->cur_mode = M_CMD;
+                    inctx->cur_mode++;
                 break;
             }
 
             case M_CMD:
             {
                 inctx->hdr.cmd = rcv_byte;
-                inctx->cur_mode = M_DATA_LEN;
+                inctx->cur_mode++;
                 break;
             }
 
             case M_DATA_LEN:
             {
                 inctx->hdr.data_len = rcv_byte;
-                inctx->cur_mode = M_HCHK;
+                inctx->cur_mode++;
                 break;
             }
 
@@ -179,7 +192,7 @@ void mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
                     uint32_t clc_crc = calc_crc32(&(inctx->hdr), sizeof(inctx->hdr));
 
                     if ( clc_crc == *snd_crc ) {
-                        inctx->cur_mode = M_DATA;
+                        inctx->cur_mode++;
                     } else {
                         inctx->cur_mode = M_START_BYTE;
                     }
@@ -194,7 +207,7 @@ void mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
                 inctx->rcv_buffer[inctx->rcv_bytes++] = rcv_byte;
 
                 if ( inctx->rcv_bytes == inctx->hdr.data_len ) {
-                    inctx->cur_mode = M_DCHK;
+                    inctx->cur_mode++;
                 }
                 break;
             }
@@ -209,14 +222,7 @@ void mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
                     uint32_t clc_crc = calc_crc32(&(inctx->hdr), sizeof(inctx->hdr));
 
                     if ( clc_crc == *snd_crc ) {
-                        /* Call cbs */
-                        size_t i;
-                        for ( i = 0; i < inctx->registered_count; i++ ) {
-                            if ( inctx->hdr.cmd == inctx->registered_codes[i] ) {
-                                inctx->registered_cbs[i](inctx->rcv_buffer, inctx->rcv_bytes);
-                                break;
-                            }
-                        }
+                        call_cb_on(inctx);
                     }
 
                     inctx->cur_mode = M_START_BYTE;
