@@ -145,6 +145,9 @@ mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
         mptime_t curTime = inctx->func_ctx->get_time();
         mptime_t diffTime;
 
+        printf("Time: %d\n", curTime);
+        usleep(1);
+
         if ( curTime < startTime ) {
             diffTime = (UINT32_MAX - startTime) + curTime;
         } else {

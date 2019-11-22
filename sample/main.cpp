@@ -24,6 +24,7 @@ int16_t serial1_get_byte()
     return res;
 }
 
+/* Return msec */
 mptime_t get_time()
 {
     chrono::milliseconds ms = chrono::duration_cast<chrono::milliseconds >(
@@ -46,20 +47,24 @@ int main (int argc, char **argv)
     s1_funcs.put_byte = serial1_put_byte;
     s1_funcs.get_time = get_time;
 
+    /* Common function */
     mproto_ctx_t mproto_s1 = mproto_init(&s1_funcs);
 
+    /* For receiving side */
     for ( size_t i = 0; i < 10; i++ ) {
         mproto_register_command(mproto_s1, i, cb);
     }
 
+    /* For sender side */
     for ( size_t i = 0; i < 10; i++ ) {
         uint32_t data = i + 20;
         mproto_send_data(mproto_s1, i, (uint8_t*)(&data), sizeof(data));
         cout << "Send uint32 for cmd: " << i << " with value: " << data << endl;
     }
 
-    /* 1 sec spin */
-    cout << mproto_spin(mproto_s1, 1000) << endl;
+    /* For receiving side */
+    /* 20 msec spin */
+    cout << mproto_spin(mproto_s1, 20) << endl;
 
     return EXIT_SUCCESS;
 }
