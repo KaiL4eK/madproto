@@ -12,7 +12,7 @@
  * Don`t use more than you plan to use
  * Optimization: lower -> saves memory
  */
-#define MADPROTO_CONTEXT_COUNT  2
+#define MADPROTO_CONTEXT_COUNT  1
 
 /* 
  * Define maximum count of command to be registered
@@ -27,7 +27,7 @@
  * If you send only 20 bytes - value 20 is enough
  * Optimization: lower -> saves memory
  */
-#define MADPROTO_INPUT_BUFFER   100
+#define MADPROTO_INPUT_BUFFER   50
 
 /* 
  * Type for definition of time

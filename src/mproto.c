@@ -119,7 +119,6 @@ void mproto_register_command(mproto_ctx_t ctx, mpcmd_t cmd, mproto_cmd_cb_t cb)
     inctx->registered_cbs[inctx->registered_count] = cb;
     inctx->registered_codes[inctx->registered_count] = cmd;
     inctx->registered_count++;
-
 }
 
 void mproto_send_data(mproto_ctx_t ctx, mpcmd_t cmd, uint8_t *data, size_t len)
