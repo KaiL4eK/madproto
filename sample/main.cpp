@@ -8,9 +8,10 @@ using namespace std;
 
 queue<uint8_t> serial1;
 
-void serial1_put_byte(uint8_t byte)
+void serial1_put_bytes(uint8_t *data, size_t len)
 {
-    serial1.push(byte);
+    for ( size_t i = 0; i < len; i++ )
+        serial1.push(data[i]);
 }
 
 int16_t serial1_get_byte()
@@ -44,7 +45,7 @@ int main (int argc, char **argv)
 {
     mproto_func_ctx_t s1_funcs;
     s1_funcs.get_byte = serial1_get_byte;
-    s1_funcs.put_byte = serial1_put_byte;
+    s1_funcs.put_bytes = serial1_put_bytes;
     s1_funcs.get_time = get_time;
 
     /* Common function */
@@ -64,7 +65,7 @@ int main (int argc, char **argv)
 
     /* For receiving side */
     /* 20 msec spin */
-    cout << mproto_spin(mproto_s1, 20) << endl;
+    cout << (mproto_spin(mproto_s1, 20) == MPROTO_SPIN_NO_DATA ? "Full read" : "Timeout") << endl;
 
     return EXIT_SUCCESS;
 }

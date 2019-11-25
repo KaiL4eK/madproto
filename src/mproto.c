@@ -2,6 +2,8 @@
 
 #include "mproto.h"
 
+typedef uint8_t crc_t;
+
 typedef enum
 {
     M_START_BYTE = 0,
@@ -35,7 +37,7 @@ typedef struct
     uint8_t         rcv_buffer[MADPROTO_INPUT_BUFFER];
     size_t          rcv_bytes;
 
-    uint8_t         crc_buffer[4];
+    uint8_t         crc_buffer[sizeof(crc_t)];
     size_t          crc_bytes;
 
     frame_hdr_t     hdr;
@@ -45,9 +47,19 @@ typedef struct
 #define START_BYTE  0xe7
 #define STOP_BYTE   0x7e
 
-uint32_t calc_crc32(uint8_t *data, size_t len)
+// uint32_t calc_crc32(uint8_t *data, size_t len)
+// {
+//     return 0x44444422;
+// }
+
+crc_t calc_crc(uint8_t *data, size_t len)
 {
-    return 0x44444422;
+    crc_t full_sum = 0;
+    for ( size_t i = 0; i < len; i++ ) {
+        full_sum += data[i];
+    }
+
+    return 255 - full_sum;
 }
 
 internal_ctx_t  base_ctx[MADPROTO_CONTEXT_COUNT];
@@ -74,6 +86,8 @@ mproto_ctx_t mproto_init(mproto_func_ctx_t *func_ctx)
     new_ctx->func_ctx = func_ctx;
     new_ctx->registered_count = 0;
     new_ctx->rcv_bytes = 0;
+    new_ctx->crc_bytes = 0;
+
     new_ctx->hdr.start_byte = START_BYTE;
 
     size_t i;
@@ -106,14 +120,6 @@ void mproto_register_command(mproto_ctx_t ctx, mpcmd_t cmd, mproto_cmd_cb_t cb)
     inctx->registered_codes[inctx->registered_count] = cmd;
     inctx->registered_count++;
 
-    printf("Register %d / count: %d\n", cmd, inctx->registered_count);
-}
-
-static void send_bytes(internal_ctx_t *inctx, uint8_t *data, size_t len)
-{
-    size_t i;
-    for ( i = 0; i < len; i++ )
-        inctx->func_ctx->put_byte(data[i]);
 }
 
 void mproto_send_data(mproto_ctx_t ctx, mpcmd_t cmd, uint8_t *data, size_t len)
@@ -125,13 +131,13 @@ void mproto_send_data(mproto_ctx_t ctx, mpcmd_t cmd, uint8_t *data, size_t len)
     hdr.cmd = cmd;
     hdr.data_len = len;
 
-    uint32_t hcrc = calc_crc32(&hdr, sizeof(hdr));
-    uint32_t dcrc = calc_crc32(data, len);
+    crc_t hcrc = calc_crc((uint8_t *)&hdr, sizeof(hdr));
+    crc_t dcrc = calc_crc(data, len);
 
-    send_bytes(inctx, &hdr, sizeof(hdr));
-    send_bytes(inctx, &hcrc, sizeof(hcrc));
-    send_bytes(inctx, data, len);
-    send_bytes(inctx, &dcrc, sizeof(dcrc));
+    inctx->func_ctx->put_bytes((uint8_t *)&hdr, sizeof(hdr));
+    inctx->func_ctx->put_bytes((uint8_t *)&hcrc, sizeof(hcrc));
+    inctx->func_ctx->put_bytes(data, len);
+    inctx->func_ctx->put_bytes((uint8_t *)&dcrc, sizeof(dcrc));
 }
 
 mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
@@ -142,20 +148,20 @@ mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
 
     while ( true )
     {
-        mptime_t curTime = inctx->func_ctx->get_time();
-        mptime_t diffTime;
+        if ( spin_max_time > 0 )
+        {
+            mptime_t curTime = inctx->func_ctx->get_time();
+            mptime_t diffTime;
 
-        printf("Time: %d\n", curTime);
-        usleep(1);
+            if ( curTime < startTime ) {
+                diffTime = (UINT32_MAX - startTime) + curTime;
+            } else {
+                diffTime = curTime - startTime;
+            }
 
-        if ( curTime < startTime ) {
-            diffTime = (UINT32_MAX - startTime) + curTime;
-        } else {
-            diffTime = curTime - startTime;
+            if ( diffTime > spin_max_time )
+                return MPROTO_SPIN_TIMEOUT;
         }
-
-        if ( diffTime > spin_max_time )
-            return MPROTO_SPIN_TIMEOUT;
 
         int16_t rcv_input = inctx->func_ctx->get_byte();
         if ( rcv_input < 0 )
@@ -183,6 +189,7 @@ mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
             {
                 inctx->hdr.data_len = rcv_byte;
                 inctx->cur_mode++;
+                inctx->crc_bytes = 0;
                 break;
             }
 
@@ -190,9 +197,9 @@ mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
             {
                 inctx->crc_buffer[inctx->crc_bytes++] = rcv_byte;
                 
-                if ( inctx->crc_bytes == 4 ) {
-                    uint32_t *snd_crc = inctx->crc_buffer;
-                    uint32_t clc_crc = calc_crc32(&(inctx->hdr), sizeof(inctx->hdr));
+                if ( inctx->crc_bytes == sizeof(crc_t) ) {
+                    crc_t *snd_crc = (crc_t *)inctx->crc_buffer;
+                    crc_t clc_crc = calc_crc((uint8_t *)&(inctx->hdr), sizeof(inctx->hdr));
 
                     if ( clc_crc == *snd_crc ) {
                         inctx->cur_mode++;
@@ -211,6 +218,7 @@ mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
 
                 if ( inctx->rcv_bytes == inctx->hdr.data_len ) {
                     inctx->cur_mode++;
+                    inctx->crc_bytes = 0;
                 }
                 break;
             }
@@ -220,9 +228,9 @@ mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
                 /* Check and call callback */
                 inctx->crc_buffer[inctx->crc_bytes++] = rcv_byte;
 
-                if ( inctx->crc_bytes == 4 ) {
-                    uint32_t *snd_crc = inctx->crc_buffer;
-                    uint32_t clc_crc = calc_crc32(&(inctx->hdr), sizeof(inctx->hdr));
+                if ( inctx->crc_bytes == sizeof(crc_t) ) {
+                    crc_t *snd_crc = (crc_t *)inctx->crc_buffer;
+                    crc_t clc_crc = calc_crc(inctx->rcv_buffer, inctx->rcv_bytes);
 
                     if ( clc_crc == *snd_crc ) {
                         call_cb_on(inctx);

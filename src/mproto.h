@@ -65,9 +65,10 @@ typedef struct
     /*
      * Function must put values to bus
      * Args:
-     *   byte - byte value
+     *   data - pointer to data
+     *   len - length of data
      */
-    void (*put_byte)(uint8_t byte);
+    void (*put_bytes)(uint8_t *data, size_t len);
     /*
      * Function must return time in free units:
      *   If it returns [seconds] -> _spin() works for max_time [seconds]
@@ -104,6 +105,8 @@ void mproto_send_data(mproto_ctx_t ctx, mpcmd_t cmd, uint8_t *data, size_t len);
  * Args:
  *   ctx - protocol context, get it from _init()
  *   spin_max_time - maximum processing time in mproto_func_ctx_t.get_time() units
+ *      0 - no timeout, read until data end
+ *      >0 - read up to count time units
  * Return:
  *   MPROTO_SPIN_NO_DATA - data ended
  *   MPROTO_SPIN_TIMEOUT - time for processing exceeded
