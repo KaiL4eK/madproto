@@ -1,10 +1,11 @@
 # madproto
+
 Micro protocol for data transfer
 
 ## Contents
 
-[src](src) - sources of protocol
-[sample](sample) - sample of usage in C++ (CMake)
+- [src](src) - sources of protocol
+- [sample](sample) - sample of usage in C++ (CMake)
 
 ## How to use
 

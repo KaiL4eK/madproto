@@ -135,7 +135,8 @@ void mproto_send_data(mproto_ctx_t ctx, mpcmd_t cmd, uint8_t *data, size_t len)
 
     inctx->func_ctx->put_bytes((uint8_t *)&hdr, sizeof(hdr));
     inctx->func_ctx->put_bytes((uint8_t *)&hcrc, sizeof(hcrc));
-    inctx->func_ctx->put_bytes(data, len);
+    if ( data && len > 0 )
+        inctx->func_ctx->put_bytes(data, len);
     inctx->func_ctx->put_bytes((uint8_t *)&dcrc, sizeof(dcrc));
 }
 
@@ -202,6 +203,9 @@ mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
 
                     if ( clc_crc == *snd_crc ) {
                         inctx->cur_mode++;
+                        /* Skip data step - cmd only */
+                        if ( inctx->hdr.data_len == 0 )
+                            inctx->cur_mode++;
                     } else {
                         inctx->cur_mode = M_START_BYTE;
                     }
