@@ -1,4 +1,4 @@
-# List of all the ChibiOS/RT test files.
+# Required source files
 MPROTO_SRC = $(MPROTODIR)/src/mproto.c
 
 # Required include directories
