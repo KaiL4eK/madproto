@@ -28,7 +28,7 @@
 #define MADPROTO_MAX_COMMANDS   20
 
 /* 
- * Define size of input buffer
+ * Define size of input buffer [bytes]
  * Must be more than maximum data size
  * If you send only 20 bytes - value 20 is enough
  * Optimization:
