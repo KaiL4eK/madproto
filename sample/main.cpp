@@ -4,19 +4,24 @@
 
 using namespace std;
 
+// Here we only include our header
 #include "mproto.h"
+
+/**
+ * Serial buffer processing and emulation code
+ */
 
 queue<uint8_t> serial1;
 
 void serial1_put_bytes(uint8_t *data, size_t len)
 {
-    for ( size_t i = 0; i < len; i++ )
+    for (size_t i = 0; i < len; i++)
         serial1.push(data[i]);
 }
 
 int16_t serial1_get_byte()
 {
-    if ( serial1.empty() )
+    if (serial1.empty())
         return -1;
 
     int16_t res = serial1.front();
@@ -28,20 +33,25 @@ int16_t serial1_get_byte()
 /* Return msec */
 mptime_t get_time()
 {
-    chrono::milliseconds ms = chrono::duration_cast<chrono::milliseconds >(
-        chrono::system_clock::now().time_since_epoch()
-    );
+    chrono::milliseconds ms = chrono::duration_cast<chrono::milliseconds>(
+        chrono::system_clock::now().time_since_epoch());
 
     return ms.count() % 100000000;
 }
 
+/**
+ * @brief Define callback function to process received data
+ * 
+ * @param cmd Command code - defined by yourself and your protocol
+ * @param data Data pointer
+ * @param len Length of data, empty commands go with 0 data
+ */
 void cb(mpcmd_t cmd, uint8_t *data, size_t len)
 {
-    cout << "Received data on command " << to_string(cmd) << " / " << to_string(*((uint32_t*)data)) << endl;
+    cout << "Received data on command " << to_string(cmd) << " / " << to_string(*((uint32_t *)data)) << endl;
 }
 
-
-int main (int argc, char **argv)
+int main(int argc, char **argv)
 {
     mproto_func_ctx_t s1_funcs;
     s1_funcs.get_byte = serial1_get_byte;
@@ -52,14 +62,16 @@ int main (int argc, char **argv)
     mproto_ctx_t mproto_s1 = mproto_init(&s1_funcs);
 
     /* For receiving side */
-    for ( size_t i = 0; i < 10; i++ ) {
+    for (size_t i = 0; i < 10; i++)
+    {
         mproto_register_command(mproto_s1, i, cb);
     }
 
     /* For sender side */
-    for ( size_t i = 0; i < 10; i++ ) {
+    for (size_t i = 0; i < 10; i++)
+    {
         uint32_t data = i + 20;
-        mproto_send_data(mproto_s1, i, (uint8_t*)(&data), sizeof(data));
+        mproto_send_data(mproto_s1, i, (uint8_t *)(&data), sizeof(data));
         cout << "Send uint32 for cmd: " << i << " with value: " << data << endl;
     }
 

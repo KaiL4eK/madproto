@@ -52,6 +52,14 @@ typedef struct
 //     return 0x44444422;
 // }
 
+/**
+ * @brief ROS-like CRC function computation
+ *  Compute checksum based on contents sum
+ * 
+ * @param data Data pointer to computer based on
+ * @param len Length of data
+ * @return crc_t Result checksum byte
+ */
 crc_t calc_crc(uint8_t *data, size_t len)
 {
     crc_t full_sum = 0;
@@ -65,6 +73,11 @@ crc_t calc_crc(uint8_t *data, size_t len)
 internal_ctx_t  base_ctx[MADPROTO_CONTEXT_COUNT];
 size_t          ctx_last_idx = 0;
 
+/**
+ * @brief Execute registered callbacks based on command codes
+ * 
+ * @param inctx Internal context
+ */
 static void call_cb_on(internal_ctx_t *inctx)
 {
     size_t i;    
@@ -171,6 +184,9 @@ mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
 
         switch (inctx->cur_mode)
         {
+            /**
+             * Start byte processing, just check that we have required byte
+             */
             case M_START_BYTE:
             {
                 if ( rcv_byte == START_BYTE )
@@ -178,13 +194,19 @@ mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
                 break;
             }
 
+            /**
+             * Get next byte as command to process
+             */
             case M_CMD:
             {
                 inctx->hdr.cmd = rcv_byte;
                 inctx->cur_mode++;
                 break;
             }
-
+            
+            /**
+             * Obtain data length to know how much to read
+             */
             case M_DATA_LEN:
             {
                 inctx->hdr.data_len = rcv_byte;
@@ -193,6 +215,9 @@ mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
                 break;
             }
 
+            /**
+             * Header checksum computation and comparison with sent data
+             */
             case M_HCHK:
             {
                 inctx->crc_buffer[inctx->crc_bytes++] = rcv_byte;
@@ -214,7 +239,10 @@ mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
                 }
                 break;
             }
-
+            
+            /**
+             * Data receive based on length
+             */
             case M_DATA:
             {
                 inctx->rcv_buffer[inctx->rcv_bytes++] = rcv_byte;
@@ -226,6 +254,9 @@ mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
                 break;
             }
 
+            /**
+             * Data checksum to ensure that data is not corrupted
+             */
             case M_DCHK:
             {
                 /* Check and call callback */
@@ -239,6 +270,7 @@ mproto_spin_result_t mproto_spin(mproto_ctx_t ctx, mptime_t spin_max_time)
                         call_cb_on(inctx);
                     }
 
+                    // Back to processing start
                     inctx->cur_mode = M_START_BYTE;
                     inctx->rcv_bytes = 0;
                     inctx->crc_bytes = 0;
